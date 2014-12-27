@@ -5,6 +5,7 @@
 require 'rubygems'
 require 'eventmachine'
 require 'em-hiredis'
+require 'json'
 
 class EchoServer < EventMachine::Connection
   def initialize
@@ -15,9 +16,10 @@ class EchoServer < EventMachine::Connection
     puts "-- someone connected to the server!"
   end
 
-  def receive_data data
-    @redis.set("test", data).callback {
-      @redis.get("test").callback { |get_res|
+  def receive_data raw
+    data = JSON.parse raw
+    @redis.set(data["user"], data["country"]).callback {
+      @redis.get(data["user"]).callback { |get_res|
         send_data ">>> cached: #{get_res}"
       }
     }
