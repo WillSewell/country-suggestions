@@ -17,12 +17,16 @@ class EchoServer < EventMachine::Connection
   end
 
   def receive_data raw
-    data = JSON.parse raw
-    @redis.sadd(data["user"], data["country"]).callback {
-      @redis.smembers(data["user"]).callback { |get_res|
-        send_data ">>> cached: #{get_res}"
+    begin
+      data = JSON.parse raw
+      @redis.sadd(data["user"], data["country"]).callback {
+        @redis.smembers(data["user"]).callback { |get_res|
+          send_data ">>> cached: #{get_res}"
+        }
       }
-    }
+    rescue JSON::ParserError
+      send_data "failed to parse JSON!"
+    end
   end
 end
 
