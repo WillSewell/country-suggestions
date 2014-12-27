@@ -18,8 +18,8 @@ class EchoServer < EventMachine::Connection
 
   def receive_data raw
     data = JSON.parse raw
-    @redis.set(data["user"], data["country"]).callback {
-      @redis.get(data["user"]).callback { |get_res|
+    @redis.sadd(data["user"], data["country"]).callback {
+      @redis.smembers(data["user"]).callback { |get_res|
         send_data ">>> cached: #{get_res}"
       }
     }
