@@ -36,6 +36,37 @@ EM::run do
       rescue JSON::ParserError
         ws.send "failed to parse JSON!"
       end
+      country_rankings ||= []
+      redis.keys("*").callback { |keys|
+        num_keys_left = keys.length
+        keys.each do |k|
+          if k != data["user"]
+            redis.sinter(data["user"], k).callback { |inter|
+              redis.sunion(data["user"], k).callback { |union|
+                similarity = inter.length.to_f / union.length
+                redis.smembers(k).callback { |other_user_countries|
+                  other_user_countries.each do |country|
+                    found = false
+                    country_rankings.each do |country_rank|
+                      if country_rank["country"] == country
+                        country_rank["similarity"] += similarity
+                        found = true
+                      end
+                    end
+                    if !found
+                      country_rankings << { "country" => country, "similarity" => similarity}
+                    end
+                  end
+                  num_keys_left -= 1
+                  if num_keys_left > 0
+                    ws.send(country_rankings.to_json)
+                  end
+                }
+              }
+            }
+          end
+        end
+      }
     }
   end
 end
