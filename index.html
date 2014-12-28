@@ -18,8 +18,13 @@
         $('#world-map').vectorMap({
           regionsSelectable: true,
           onRegionSelected: function(event, code, isSelected, selectedRegions) {
-            ws.send(JSON.stringify({ user: fingerprint, country: code }));
-        }});
+            ws.send(JSON.stringify({
+              user: fingerprint,
+              country: code,
+              isSelected: isSelected
+            }));
+         }
+        });
       });
     };
     ws.onmessage = function(message) {

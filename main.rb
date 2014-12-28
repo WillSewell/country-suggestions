@@ -20,11 +20,19 @@ EM::run do
     ws.onmessage { |msg|
       begin
         data = JSON.parse msg
-        redis.sadd(data["user"], data["country"]).callback {
-          redis.smembers(data["user"]).callback { |get_res|
-            ws.send ">>> cached: #{get_res}"
+        if data["isSelected"]
+          redis.sadd(data["user"], data["country"]).callback {
+            redis.smembers(data["user"]).callback { |get_res|
+              ws.send ">>> cached, set: #{get_res}"
+            }
           }
-        }
+        else
+          redis.srem(data["user"], data["country"]).callback {
+            redis.smembers(data["user"]).callback { |get_res|
+              ws.send ">>> removed, set: #{get_res}"
+            }
+          }
+        end
       rescue JSON::ParserError
         ws.send "failed to parse JSON!"
       end
