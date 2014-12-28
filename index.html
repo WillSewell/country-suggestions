@@ -6,13 +6,25 @@
   <script src="bower_components/jquery/dist/jquery.js"></script>
   <script src="bower_components/bower-jvectormap/jquery-jvectormap-1.2.2.min.js"></script>
   <script src="bower_components/bower-jvectormap/jquery-jvectormap-world-mill-en.js"></script>
+  <script src="bower_components/fingerprint/fingerprint.js"></script>
 </head>
 <body>
-  <div id="world-map" style="width: 600px; height: 400px"></div>
+  <div id="world-map" style="position: absolute; top: 0; right: 0; bottom: 0; left: 0;"></div>
   <script>
-    $(function(){
-      $('#world-map').vectorMap();
-    });
+    var fingerprint = new Fingerprint({canvas: true}).get();
+    var ws = new WebSocket("ws://localhost:8081");
+    ws.onopen = function() {
+      $(function(){
+        $('#world-map').vectorMap({
+          regionsSelectable: true,
+          onRegionSelected: function(event, code, isSelected, selectedRegions) {
+            ws.send(JSON.stringify({ user: fingerprint, country: code }));
+        }});
+      });
+    };
+    ws.onmessage = function(message) {
+      console.log(message);
+    };
   </script>
 </body>
 </html>
