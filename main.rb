@@ -23,20 +23,20 @@ EM::run do
         if data["isSelected"]
           redis.sadd(data["user"], data["country"]).callback {
             redis.smembers(data["user"]).callback { |get_res|
-              ws.send ">>> cached, set: #{get_res}"
+              puts ">>> cached, set: #{get_res}"
             }
           }
         else
           redis.srem(data["user"], data["country"]).callback {
             redis.smembers(data["user"]).callback { |get_res|
-              ws.send ">>> removed, set: #{get_res}"
+              puts ">>> removed, set: #{get_res}"
             }
           }
         end
       rescue JSON::ParserError
         ws.send "failed to parse JSON!"
       end
-      country_rankings ||= []
+      country_rankings = {}
       redis.keys("*").callback { |keys|
         num_keys_left = keys.length
         keys.each do |k|
@@ -47,14 +47,14 @@ EM::run do
                 redis.smembers(k).callback { |other_user_countries|
                   other_user_countries.each do |country|
                     found = false
-                    country_rankings.each do |country_rank|
-                      if country_rank["country"] == country
-                        country_rank["similarity"] += similarity
+                    country_rankings.each do |other_country, rank|
+                      if other_country == country
+                        rank += similarity
                         found = true
                       end
                     end
                     if !found
-                      country_rankings << { "country" => country, "similarity" => similarity}
+                      country_rankings[country] = similarity
                     end
                   end
                   num_keys_left -= 1
