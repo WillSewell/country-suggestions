@@ -30,19 +30,34 @@
           max: 1
         }]
       },
-      onRegionSelected: function(event, code, isSelected, selectedRegions) {
+      onRegionClick: function(event, code) {
+        var mapObj = $('#world-map').vectorMap('get', 'mapObject');
+        console.log(mapObj.getSelectedRegions());
+        console.log(mapObj.getSelectedRegions().indexOf(code));
         ws.send(JSON.stringify({
+          action: "country_clicked",
           user: fingerprint,
           country: code,
-          isSelected: isSelected
+          isSelected: mapObj.getSelectedRegions().indexOf(code) == -1
         }));
       }
     };
     $('#world-map').vectorMap(mapConf);
     var mapObj = $('#world-map').vectorMap('get', 'mapObject');
+    ws.onopen = function() {
+      ws.send(JSON.stringify({
+        action: "get_selected",
+        user: fingerprint
+      }));
+    };
     ws.onmessage = function(message) {
       console.log(message);
-      mapObj.series.regions[0].setValues(JSON.parse(message.data));
+      msg = JSON.parse(message.data);
+      if (msg.action == "country_clicked") {
+        mapObj.series.regions[0].setValues(msg.rankings);
+      } else if (msg.action == "get_selected") {
+        mapObj.setSelectedRegions(msg.selected);
+      }
     };
   </script>
 </body>
