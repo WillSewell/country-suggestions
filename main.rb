@@ -31,17 +31,17 @@ end
 def send_rankings ws, redis, user
   country_rankings = {}
   # First get and loop through other users selections
-  redis.keys("*").callback { |keys|
+  redis.keys("*").callback do |keys|
     num_keys_left = keys.length - 1
     keys.each do |k|
       if k != user.to_s
         # For each other user, compute the similarity using the Jaccard index
-        redis.sinter(user, k).callback { |inter|
-          redis.sunion(user, k).callback { |union|
+        redis.sinter(user, k).callback do |inter|
+          redis.sunion(user, k).callback do |union|
             similarity = inter.length.to_f / union.length
             # For each country of the other user, increase the rank of
             # that country based on the similarity
-            redis.smembers(k).callback { |other_user_countries|
+            redis.smembers(k).callback do |other_user_countries|
               other_user_countries.each do |country|
                 found = false
                 country_rankings.each do |other_country, rank|
@@ -64,12 +64,12 @@ def send_rankings ws, redis, user
                 }
                 ws.send(response.to_json)
               end
-            }
-          }
-        }
+            end
+          end
+        end
       end
     end
-  }
+  end
 end
 
 # Get all selected countries for a given user
