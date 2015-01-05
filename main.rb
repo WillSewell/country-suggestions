@@ -77,6 +77,8 @@ def get_selected ws, redis, user
   redis.smembers(user).callback do |members|
     response = { action: "get_selected", selected: members }
     ws.send(response.to_json)
+    # Also send the rankings
+    send_rankings ws, redis, user
   end
 end
 
