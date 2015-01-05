@@ -86,9 +86,7 @@ end
 EM::run do
   redis = EM::Hiredis.connect
   EM::WebSocket.run(:host => "127.0.0.1", :port => 8081) do |ws|
-    ws.onopen { |handshake|
-      puts "WebSocket connection open"
-    }
+    ws.onopen { |handshake| puts "WebSocket connection open" }
 
     ws.onclose { puts "Connection closed" }
 
