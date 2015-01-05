@@ -8,6 +8,7 @@ require 'em-hiredis'
 require 'em-websocket'
 require 'json'
 
+# Add, or delete a country, and then compute and send rankings
 def update_country ws, redis, user, country, isSelected
     if isSelected
       redis.sadd(user, country).callback {
@@ -26,15 +27,20 @@ def update_country ws, redis, user, country, isSelected
     end
 end
 
+# Compute rankings based on similarities to all other users
 def send_rankings ws, redis, user
   country_rankings = {}
+  # First get and loop through other users selections
   redis.keys("*").callback { |keys|
     num_keys_left = keys.length - 1
     keys.each do |k|
       if k != user.to_s
+        # For each other user, compute the similarity using the Jaccard index
         redis.sinter(user, k).callback { |inter|
           redis.sunion(user, k).callback { |union|
             similarity = inter.length.to_f / union.length
+            # For each country of the other user, increase the rank of
+            # that country based on the similarity
             redis.smembers(k).callback { |other_user_countries|
               other_user_countries.each do |country|
                 found = false
@@ -48,6 +54,8 @@ def send_rankings ws, redis, user
                   country_rankings[country] = similarity
                 end
               end
+              # If all other users of been looked at, send the similarities
+              # TODO: need to think of race conditions here with num_keys_left
               num_keys_left -= 1
               if num_keys_left < 1
                 response = {
@@ -64,6 +72,7 @@ def send_rankings ws, redis, user
   }
 end
 
+# Get all selected countries for a given user
 def get_selected ws, redis, user
   redis.smembers(user).callback { |members|
     response = { action: "get_selected", selected: members }
@@ -71,6 +80,9 @@ def get_selected ws, redis, user
   }
 end
 
+# Start the EM event loop
+# Defines an event handler for incoming messages
+# Based on their "action" field, a different event handler will be run
 EM::run do
   redis = EM::Hiredis.connect
   EM::WebSocket.run(:host => "127.0.0.1", :port => 8081) do |ws|
