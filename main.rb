@@ -10,21 +10,21 @@ require 'json'
 
 # Add, or delete a country, and then compute and send rankings
 def update_country ws, redis, user, country, isSelected
-    if isSelected
-      redis.sadd(user, country).callback do
-        redis.smembers(user).callback do |get_res|
-          puts ">>> cached, set: #{get_res}"
-          send_rankings ws, redis, user
-        end
-      end
-    else
-      redis.srem(user, country).callback do
-        redis.smembers(user).callback do |get_res|
-          puts ">>> removed, set: #{get_res}"
-          send_rankings ws, redis, user
-        end
+  if isSelected
+    redis.sadd(user, country).callback do
+      redis.smembers(user).callback do |get_res|
+        puts ">>> cached, set: #{get_res}"
+        send_rankings ws, redis, user
       end
     end
+  else
+    redis.srem(user, country).callback do
+      redis.smembers(user).callback do |get_res|
+        puts ">>> removed, set: #{get_res}"
+        send_rankings ws, redis, user
+      end
+    end
+  end
 end
 
 # Compute rankings based on similarities to all other users
