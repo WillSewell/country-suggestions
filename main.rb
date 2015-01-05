@@ -11,19 +11,19 @@ require 'json'
 # Add, or delete a country, and then compute and send rankings
 def update_country ws, redis, user, country, isSelected
     if isSelected
-      redis.sadd(user, country).callback {
-        redis.smembers(user).callback { |get_res|
+      redis.sadd(user, country).callback do
+        redis.smembers(user).callback do |get_res|
           puts ">>> cached, set: #{get_res}"
           send_rankings ws, redis, user
-        }
-      }
+        end
+      end
     else
-      redis.srem(user, country).callback {
-        redis.smembers(user).callback { |get_res|
+      redis.srem(user, country).callback do
+        redis.smembers(user).callback do |get_res|
           puts ">>> removed, set: #{get_res}"
           send_rankings ws, redis, user
-        }
-      }
+        end
+      end
     end
 end
 
@@ -74,10 +74,10 @@ end
 
 # Get all selected countries for a given user
 def get_selected ws, redis, user
-  redis.smembers(user).callback { |members|
+  redis.smembers(user).callback do |members|
     response = { action: "get_selected", selected: members }
     ws.send(response.to_json)
-  }
+  end
 end
 
 # Start the EM event loop
@@ -92,7 +92,7 @@ EM::run do
 
     ws.onclose { puts "Connection closed" }
 
-    ws.onmessage { |msg|
+    ws.onmessage do |msg|
       puts msg
       begin
         data = JSON.parse msg
@@ -104,6 +104,6 @@ EM::run do
       rescue JSON::ParserError
         puts "failed to parse JSON!"
       end
-    }
+    end
   end
 end
