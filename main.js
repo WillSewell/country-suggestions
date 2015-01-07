@@ -15,8 +15,9 @@ var mapConf = {
   series: {
     regions: [{
       attribute: 'fill',
-      scale: ['#FFFFFF', '#02B565'],
-      normalizeFunction: 'polynomial',
+      // scale: ['#FFFFFF', '#02B565'],
+      scale: ['#FFFFFF', '#000000'],
+      // normalizeFunction: 'polynomial',
       min: 0,
       max: 1
     }]
@@ -55,6 +56,7 @@ ws.onmessage = function(message) {
   msg = JSON.parse(message.data);
   if (msg.action == "country_clicked") {
     mapObj.series.regions[0].setValues(msg.rankings);
+    console.log(mapObj.series.regions[0]);
   } else if (msg.action == "get_selected") {
     mapObj.setSelectedRegions(msg.selected);
   }

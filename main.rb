@@ -30,6 +30,7 @@ end
 # Compute rankings based on similarities to all other users
 def send_rankings ws, redis, user
   country_rankings = {}
+  max_ranking = 0
   # First get and loop through other users selections
   redis.keys("*").callback do |keys|
     num_keys_left = keys.length - 1
@@ -42,25 +43,37 @@ def send_rankings ws, redis, user
             # For each country of the other user, increase the rank of
             # that country based on the similarity
             redis.smembers(k).callback do |other_user_countries|
+              puts k + other_user_countries.inspect
+              puts k + inter.inspect
+              puts k + union.inspect
+              puts k + similarity.inspect
               other_user_countries.each do |country|
                 found = false
-                country_rankings.each do |other_country, rank|
-                  if other_country == country
-                    rank += similarity
+                country_rankings.each do |ranked_country, rank|
+                  if ranked_country == country
+                    country_rankings[country] += similarity
                     found = true
                   end
                 end
                 if !found
                   country_rankings[country] = similarity
                 end
+                if country_rankings[country] > max_ranking
+                  max_ranking = country_rankings[country]
+                end
               end
+              puts k + " " + country_rankings.inspect
               # If all other users of been looked at, send the similarities
               # TODO: need to think of race conditions here with num_keys_left
               num_keys_left -= 1
               if num_keys_left < 1
+                # normalise
+                country_rankings.each do |country, rank|
+                  country_rankings[country] = rank / max_ranking # normalize
+                end
                 response = {
                   action: "country_clicked",
-                  rankings: country_rankings
+                  rankings: country_rankings,
                 }
                 ws.send(response.to_json)
               end
