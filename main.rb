@@ -14,21 +14,21 @@ def update_country ws, redis, user, country, isSelected
     redis.sadd(user, country).callback do
       redis.smembers(user).callback do |get_res|
         puts ">>> cached, set: #{get_res}"
-        send_rankings ws, redis, user
+        send_rankings ws, redis, user, get_res
       end
     end
   else
     redis.srem(user, country).callback do
       redis.smembers(user).callback do |get_res|
         puts ">>> removed, set: #{get_res}"
-        send_rankings ws, redis, user
+        send_rankings ws, redis, user, get_res
       end
     end
   end
 end
 
 # Compute rankings based on similarities to all other users
-def send_rankings ws, redis, user
+def send_rankings ws, redis, user, user_countries
   country_rankings = {}
   max_ranking = 0
   # First get and loop through other users selections
@@ -37,47 +37,48 @@ def send_rankings ws, redis, user
     keys.each do |k|
       if k != user.to_s
         # For each other user, compute the similarity using the Jaccard index
-        redis.sinter(user, k).callback do |inter|
-          redis.sunion(user, k).callback do |union|
-            similarity = inter.length.to_f / union.length
-            # For each country of the other user, increase the rank of
-            # that country based on the similarity
-            redis.smembers(k).callback do |other_user_countries|
-              puts k + other_user_countries.inspect
-              puts k + inter.inspect
-              puts k + union.inspect
-              puts k + similarity.inspect
-              other_user_countries.each do |country|
-                found = false
-                country_rankings.each do |ranked_country, rank|
-                  if ranked_country == country
-                    country_rankings[country] += similarity
-                    found = true
-                  end
-                end
-                if !found
-                  country_rankings[country] = similarity
-                end
-                if country_rankings[country] > max_ranking
-                  max_ranking = country_rankings[country]
+        redis.smembers(k).callback do |other_countries|
+          inter = user_countries & other_countries
+          union = user_countries | other_countries
+          similarity = inter.length.to_f / union.length
+          # For each country of the other user, increase the rank of
+          # that country based on the similarity
+          puts k + other_countries.inspect
+          puts k + inter.inspect
+          puts k + union.inspect
+          puts k + similarity.inspect
+          other_countries.each do |other_country|
+            unless user_countries.include? other_country
+              found = false
+              country_rankings.each do |ranked_country, rank|
+                if ranked_country == other_country
+                  # No need to suggest countries already selected
+                  country_rankings[other_country] += similarity
+                  found = true
                 end
               end
-              puts k + " " + country_rankings.inspect
-              # If all other users of been looked at, send the similarities
-              # TODO: need to think of race conditions here with num_keys_left
-              num_keys_left -= 1
-              if num_keys_left < 1
-                # normalise
-                country_rankings.each do |country, rank|
-                  country_rankings[country] = rank / max_ranking # normalize
-                end
-                response = {
-                  action: "country_clicked",
-                  rankings: country_rankings,
-                }
-                ws.send(response.to_json)
+              unless found
+                country_rankings[other_country] = similarity
+              end
+              if country_rankings[other_country] > max_ranking
+                max_ranking = country_rankings[other_country]
               end
             end
+          end
+          puts k + " " + country_rankings.inspect
+          # If all other users of been looked at, send the similarities
+          # TODO: need to think of race conditions here with num_keys_left
+          num_keys_left -= 1
+          if num_keys_left < 1
+            # normalise
+            country_rankings.each do |country, rank|
+              country_rankings[country] = rank / max_ranking # normalize
+            end
+            response = {
+              action: "country_clicked",
+              rankings: country_rankings,
+            }
+            ws.send(response.to_json)
           end
         end
       end
@@ -91,7 +92,7 @@ def get_selected ws, redis, user
     response = { action: "get_selected", selected: members }
     ws.send(response.to_json)
     # Also send the rankings
-    send_rankings ws, redis, user
+    send_rankings ws, redis, user, members
   end
 end
 
