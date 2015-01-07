@@ -47,21 +47,23 @@ def send_rankings ws, redis, user, user_countries
           puts k + inter.inspect
           puts k + union.inspect
           puts k + similarity.inspect
-          other_countries.each do |other_country|
-            unless user_countries.include? other_country
-              found = false
-              country_rankings.each do |ranked_country, rank|
-                if ranked_country == other_country
-                  # No need to suggest countries already selected
-                  country_rankings[other_country] += similarity
-                  found = true
+          if similarity > 0
+            other_countries.each do |other_country|
+              unless user_countries.include? other_country
+                found = false
+                country_rankings.each do |ranked_country, rank|
+                  if ranked_country == other_country
+                    # No need to suggest countries already selected
+                    country_rankings[other_country] += similarity
+                    found = true
+                  end
                 end
-              end
-              unless found
-                country_rankings[other_country] = similarity
-              end
-              if country_rankings[other_country] > max_ranking
-                max_ranking = country_rankings[other_country]
+                unless found
+                  country_rankings[other_country] = similarity
+                end
+                if country_rankings[other_country] > max_ranking
+                  max_ranking = country_rankings[other_country]
+                end
               end
             end
           end
