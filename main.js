@@ -53,7 +53,12 @@ ws.onmessage = function(message) {
   console.log(message);
   msg = JSON.parse(message.data);
   if (msg.action == "country_clicked") {
-    mapObj.series.regions[0].setValues(msg.rankings);
+    console.log(mapObj.series.regions[0]);
+    if ($.isEmptyObject(msg.rankings)) {
+      mapObj.series.regions[0].clear();
+    } else {
+      mapObj.series.regions[0].setValues(msg.rankings);
+    }
   } else if (msg.action == "get_selected") {
     mapObj.setSelectedRegions(msg.selected);
   }
