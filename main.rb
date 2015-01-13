@@ -45,7 +45,7 @@ end
 compute_rankings = proc do |user_countries, similarities_and_countries|
   # For each country of the other user, increase the rank of
   # that country based on the similarity
-  rankings_and_max = similarities_and_countries.reduce([{}, 0]) do |acc, similarity_and_countries|
+  rankings_and_max = similarities_and_countries.reduce([Hash.new(0), 0]) do |acc, similarity_and_countries|
     similarity = similarity_and_countries[0]
     other_user_countries = similarity_and_countries[1]
     country_rankings = acc[0]
@@ -54,20 +54,8 @@ compute_rankings = proc do |user_countries, similarities_and_countries|
       other_user_countries.each do |other_user_country|
         # Don't bother suggesting countries they have already clicked
         unless user_countries.include? other_user_country
-          found = false
-          country_rankings.each do |ranked_country, rank|
-            if ranked_country == other_user_country
-              # No need to suggest countries already selected
-              country_rankings[other_user_country] += similarity
-              found = true
-            end
-          end
-          unless found
-            country_rankings[other_user_country] = similarity
-          end
-          if country_rankings[other_user_country] > max_ranking
-            max_ranking = country_rankings[other_user_country]
-          end
+          country_rankings[other_user_country] += similarity
+          max_ranking = [country_rankings[other_user_country], max_ranking].max
         end
       end
     end
