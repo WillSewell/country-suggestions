@@ -8,6 +8,15 @@ require 'em-hiredis'
 require 'em-websocket'
 require 'json'
 
+class Array
+  # A similarity coefficient
+  def jaccard_index other_array
+    inter = self & other_array
+    union = self | other_array
+    inter.length.to_f / union.length
+  end
+end
+
 # Add, or delete a country, and then compute and send rankings
 def update_country redis, user, country, isSelected, callback
   # Run the callback on the new set of countries
@@ -31,12 +40,13 @@ compute_similarities = proc do |redis, user, user_countries, other_user, iter|
   else
     # For each other user, compute the similarity using the Jaccard index
     redis.smembers(other_user).callback do |other_countries|
-      inter = user_countries & other_countries
-      union = user_countries | other_countries
-      similarity = inter.length.to_f / union.length
+      similarity = user_countries.jaccard_index(other_countries)
       iter.return [similarity, other_countries]
     end
   end
+end
+
+def similarity
 end
 
 compute_rankings = proc do |user_countries, similarities_and_countries|
