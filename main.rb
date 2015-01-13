@@ -1,7 +1,3 @@
-#!/usr/bin/env ruby
-#
-# server_1
-
 require 'rubygems'
 require 'eventmachine'
 require 'em-hiredis'
@@ -20,15 +16,15 @@ end
 # Add, or delete a country, and then compute and send rankings
 def update_country redis, user, country, isSelected, callback
   # Run the callback on the new set of countries
-  cb = proc do |x|
-    redis.smembers(user, country).callback do |user_countries|
+  cb = proc do
+    redis.smembers(user).callback do |user_countries|
       callback.call user_countries
     end
   end
   if isSelected
-    redis.sadd(user, country).callback cb
+    redis.sadd(user, country).callback &cb
   else
-    redis.srem(user, country).callback cb
+    redis.srem(user, country).callback &cb
   end
 end
 
@@ -44,9 +40,6 @@ compute_similarities = proc do |redis, user, user_countries, other_user, iter|
       iter.return [similarity, other_countries]
     end
   end
-end
-
-def similarity
 end
 
 compute_rankings = proc do |user_countries, similarities_and_countries|
@@ -136,7 +129,6 @@ EM::run do
         # Chaining callbacks -- executed in reverse
         send_rankings_cb = send_rankings.curry[ws]
         compute_rankings_cb = compute_all_rankings.curry[redis][data["country"]][send_rankings_cb]
-        p compute_rankings_cb
         if data["action"] == "country_clicked"
           update_country redis, data["user"], data["country"], data["isSelected"], compute_rankings_cb
         elsif data["action"] == "get_selected"
