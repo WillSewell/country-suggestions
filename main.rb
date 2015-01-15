@@ -1,107 +1,32 @@
 require 'rubygems'
 require 'eventmachine'
-require 'em-hiredis'
 require 'em-websocket'
 require 'json'
 
-class Array
-  # A similarity coefficient
-  def jaccard_index other_array
-    inter = self & other_array
-    union = self | other_array
-    inter.length.to_f / union.length
-  end
-end
+require_relative 'model'
+require_relative 'connection'
+require_relative 'logic'
 
-# Add, or delete a country, and then compute and send rankings
-def update_country redis, user, country, isSelected, callback
-  # Run the callback on the new set of countries
-  cb = proc do
-    redis.smembers(user).callback do |user_countries|
-      callback.call user_countries
-    end
-  end
-  if isSelected
-    redis.sadd(user, country).callback &cb
-  else
-    redis.srem(user, country).callback &cb
-  end
-end
-
-def compute_similarity redis, user, user_countries, other_user, callback
-  if other_user == user.to_s
-    # We don't care about the similarity of the current user to themselves
-    # Just return a dummy value with similarity 0 so it is not counted
-    iter.return [0, []]
-  else
-    # For each other user, compute the similarity using the Jaccard index
-    redis.smembers(other_user).callback do |other_countries|
-      similarity = user_countries.jaccard_index(other_countries)
-      callback.call similarity, other_countries
-    end
-  end
-end
-
-compute_rankings = proc do |user_countries, similarities_and_countries|
-  # For each country of the other user, increase the rank of
-  # that country based on the similarity
-  rankings_and_max = similarities_and_countries.reduce([Hash.new(0), 0]) do |acc, similarity_and_countries|
-    similarity = similarity_and_countries[0]
-    other_user_countries = similarity_and_countries[1]
-    country_rankings = acc[0]
-    max_ranking = acc[1]
-    if similarity > 0
-      other_user_countries.each do |other_user_country|
-        # Don't bother suggesting countries they have already clicked
-        unless user_countries.include? other_user_country
-          country_rankings[other_user_country] += similarity
-          max_ranking = [country_rankings[other_user_country], max_ranking].max
-        end
-      end
-    end
-    [country_rankings, max_ranking]
-  end
-  normalise_rankings rankings_and_max[0], rankings_and_max[1]
-end
-
-def normalise_rankings rankings, max_ranking
-  Hash[rankings.map do |country, rank|
-    [country, rank / max_ranking ]
-  end]
-end
+include Logic
 
 # Compute rankings based on similarities to all other users
-compute_all_rankings = proc do |redis, user, callback, user_countries|
+def compute_all_rankings model, user, user_countries
   # First get and loop through all other user's selections
-  redis.keys("*").callback do |keys|
+  model.get_all_users do |users|
     # Create a callbacks by combining the proc to compute rankings with the
     # provided callback
+
     foreach_cb = proc do |other_user, iter|
-      compute_similarity redis, user, user_countries, other_user, (proc do |similarity, other_countries|
+      model.get_similarity user, user_countries, other_user do |similarity, other_countries|
         iter.return [similarity, other_countries]
-      end)
+      end
     end
+
     end_cb = proc do |similarities_and_countries|
-      callback.call (compute_rankings.call user_countries, similarities_and_countries)
+      yield compute_rankings user_countries, similarities_and_countries
     end
-    EM::Iterator.new(keys, keys.length).map(foreach_cb, end_cb)
-  end
-end
 
-send_rankings = proc do |ws, rankings|
-  response = {
-    action: "country_clicked",
-    rankings: rankings,
-  }
-  ws.send(response.to_json)
-end
-
-# Get all selected countries for a given user
-def send_selected ws, redis, user, callback
-  redis.smembers(user).callback do |members|
-    response = { action: "get_selected", selected: members }
-    ws.send(response.to_json)
-    callback.call members
+    EM::Iterator.new(users, users.length).map foreach_cb, end_cb
   end
 end
 
@@ -109,8 +34,9 @@ end
 # Defines an event handler for incoming messages
 # Based on their "action" field, a different event handler will be run
 EM::run do
-  redis = EM::Hiredis.connect
+  model = Model.new
   EM::WebSocket.run(:host => "127.0.0.1", :port => 8081) do |ws|
+    conn = Connection.new ws
     ws.onopen { |handshake| puts "WebSocket connection open" }
 
     ws.onclose { puts "Connection closed" }
@@ -119,14 +45,23 @@ EM::run do
       puts msg
       begin
         data = JSON.parse msg
-        # Chaining callbacks -- executed in reverse
-        send_rankings_cb = send_rankings.curry[ws]
-        compute_rankings_cb = compute_all_rankings.curry[redis][data["country"]][send_rankings_cb]
-        if data["action"] == "country_clicked"
-          update_country redis, data["user"], data["country"], data["isSelected"], compute_rankings_cb
-        elsif data["action"] == "get_selected"
-          send_selected ws, redis, data["user"], compute_rankings_cb
+
+        compute_and_send_rankings = proc do |user_countries|
+          compute_all_rankings model, data["user"], user_countries do |rankings|
+            conn.send_rankings rankings
+          end
         end
+
+        if data["action"] == "country_clicked"
+          model.update_country data["user"], data["country"], data["isSelected"], &compute_and_send_rankings
+
+        elsif data["action"] == "get_selected"
+          model.get_selected data["user"] do |selected|
+            conn.send_selected selected
+            compute_and_send_rankings.call selected
+          end
+        end
+
       rescue JSON::ParserError
         puts "failed to parse JSON!"
       end
