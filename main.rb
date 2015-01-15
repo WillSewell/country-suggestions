@@ -28,7 +28,7 @@ def update_country redis, user, country, isSelected, callback
   end
 end
 
-compute_similarities = proc do |redis, user, user_countries, other_user, iter|
+def compute_similarity redis, user, user_countries, other_user, callback
   if other_user == user.to_s
     # We don't care about the similarity of the current user to themselves
     # Just return a dummy value with similarity 0 so it is not counted
@@ -37,7 +37,7 @@ compute_similarities = proc do |redis, user, user_countries, other_user, iter|
     # For each other user, compute the similarity using the Jaccard index
     redis.smembers(other_user).callback do |other_countries|
       similarity = user_countries.jaccard_index(other_countries)
-      iter.return [similarity, other_countries]
+      callback.call similarity, other_countries
     end
   end
 end
@@ -74,12 +74,17 @@ end
 compute_all_rankings = proc do |redis, user, callback, user_countries|
   # First get and loop through all other user's selections
   redis.keys("*").callback do |keys|
-    # Create a callback by combining the proc to compute rankings with the
+    # Create a callbacks by combining the proc to compute rankings with the
     # provided callback
-    cb = proc do |similarities_and_countries|
+    foreach_cb = proc do |other_user, iter|
+      compute_similarity redis, user, user_countries, other_user, (proc do |similarity, other_countries|
+        iter.return [similarity, other_countries]
+      end)
+    end
+    end_cb = proc do |similarities_and_countries|
       callback.call (compute_rankings.call user_countries, similarities_and_countries)
     end
-    EM::Iterator.new(keys, keys.length).map(compute_similarities.curry[redis][user][user_countries], cb)
+    EM::Iterator.new(keys, keys.length).map(foreach_cb, end_cb)
   end
 end
 
