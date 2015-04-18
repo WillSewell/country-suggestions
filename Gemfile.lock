@@ -8,8 +8,10 @@ GEM
       eventmachine (>= 0.12.9)
       http_parser.rb (~> 0.6.0)
     eventmachine (1.0.7)
+    eventmachine_httpserver (0.2.1)
     hiredis (0.5.2)
     http_parser.rb (0.6.0)
+    mime-types (2.4.3)
 
 PLATFORMS
   ruby
@@ -18,3 +20,5 @@ DEPENDENCIES
   em-hiredis
   em-websocket
   eventmachine
+  eventmachine_httpserver
+  mime-types

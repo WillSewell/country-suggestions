@@ -1,5 +1,7 @@
+require 'mime-types'
 require 'rubygems'
 require 'eventmachine'
+require 'evma_httpserver'
 require 'em-websocket'
 require 'json'
 
@@ -8,6 +10,34 @@ require_relative 'connection'
 require_relative 'logic'
 
 include Logic
+
+# Simple HTTP server for serving the static files
+class HttpServer < EM::Connection
+  include EM::HttpServer
+
+  def post_init
+    super
+    no_environment_strings
+  end
+
+  def process_http_request
+    if @http_request_uri == "/"
+      file = "index.html"
+    else
+      file = @http_request_uri[1..-1]
+    end
+    response = EM::DelegatedHttpResponse.new(self)
+    if File.exist?(file)
+      response.status = 200
+      response.content_type MIME::Types.of(file).first.content_type
+      response.content = File.read(file)
+      response.send_response
+    else
+      response.status = 404
+      response.send_response
+    end
+  end
+end
 
 # Compute rankings based on similarities to all other users
 def compute_all_rankings model, user, user_countries
@@ -30,10 +60,12 @@ def compute_all_rankings model, user, user_countries
   end
 end
 
-# Start the EM event loop
-# Defines an event handler for incoming messages
-# Based on their "action" field, a different event handler will be run
+# Start the EM event loop to run the HTTP server and WebSocket server
 EM::run do
+  EventMachine.start_server("127.0.0.1", 8080, HttpServer)
+
+  # Defines an event handler for incoming messages
+  # Based on their "action" field, a different event handler will be run
   model = Model.new
   EM::WebSocket.run(:host => "127.0.0.1", :port => 8081) do |ws|
     conn = Connection.new ws
