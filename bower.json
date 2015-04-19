@@ -15,7 +15,6 @@
     "tests"
   ],
   "dependencies": {
-    "fingerprint": "Valve/fingerprintjs#~0.5.4",
     "jquery-jvectormap-world-mill-en.js": "git@github.com:djozsef/jquery-jvectormap-world-mill-en.js.git",
     "jquery": "~2.1.3",
     "jvectormap": "~2.0.2"
