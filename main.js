@@ -1,24 +1,26 @@
-// Login with Facebook
-$.ajaxSetup({ cache: true });
-$.getScript('//connect.facebook.net/en_US/sdk.js', function() {
+function initFB() {
+  $.ajaxSetup({ cache: true });
   FB.init({
     appId: '477217085762255',
     version: 'v2.3'
   });
+}
+
+function fbLogin(cb) {
   FB.getLoginStatus(function(response) {
     if (response.status === 'connected') {
-      getUID(buildMap);
+      cb();
     } else {
       FB.login(function(response) {
         if (response.status === 'connected') {
-          getUID(buildMap);
+          cb();
         }
       });
     }
   });
-});
+}
 
-function getUID(cb) {
+function getFBUID(cb) {
   FB.api('/me', function(response) {
     cb(response.id);
   });
@@ -27,7 +29,7 @@ function getUID(cb) {
 function buildMap(uid) {
   var ws = new WebSocket("ws://localhost:8081");
 
-// The initial map configuration
+  // The initial map configuration
   var mapConf = {
     regionsSelectable: true,
     backgroundColor: '#204975',
@@ -51,7 +53,7 @@ function buildMap(uid) {
       var mapObj = $('#world-map').vectorMap('get', 'mapObject');
       ws.send(JSON.stringify({
         action: "country_clicked",
-        user: fingerprint,
+        user: uid,
         country: code,
         isSelected: mapObj.getSelectedRegions().indexOf(code) == -1
       }));
@@ -88,3 +90,6 @@ function buildMap(uid) {
     }
   };
 }
+
+initFB();
+fbLogin(function() { getFBUID(buildMap); });
